@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include <algorithm>
+#include <array>
 #include <iostream>
 #include <unordered_map>
 #include <unordered_set>

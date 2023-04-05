@@ -166,7 +166,7 @@ class TableBuilder {
         for (char c : char_set) {
             (*accum).table.at(accum_starting_state).add_transition(new_acc, c);
         }
-        (*accum).table.insert({new_acc, {}});
+        (*accum).table.insert({new_acc, TransitionTable::TransitionRow()});
         (*accum).accepting_states.clear();
         (*accum).accepting_states.push_back(new_acc);
 
@@ -222,7 +222,8 @@ class TableBuilder {
                            TransitionTable::State::Hash>
             new_table;
         for (auto const &state_row : built_table.table) {
-            new_table.insert({state_row.first, {}});
+            new_table.insert(
+                {state_row.first, TransitionTable::TransitionRow{}});
         }
 
         for (auto const &state_row : built_table.table) {

@@ -148,6 +148,9 @@ bool validate_helper(TokenStack &token_stack) {
         return false;
     }
 
+    // remove the EOL if it exists
+    token_stack.expect(EOL);
+
     return validate_helper(token_stack);
 }
 
@@ -307,6 +310,11 @@ void compile_helper(TableBuilder &table_builder, TokenStack &token_stack) {
     // compile_post_modifier(curr_table, token_stack);
     std::cerr << "appending table" << std::endl;
     table_builder += curr_table;
+
+    if (token_stack.expect(EOL)) {
+        table_builder.eol_modify();
+    }
+
     compile_helper(table_builder, token_stack);
     return;
 }
