@@ -24,6 +24,8 @@ struct Token {
         STAR,
         QUESTION,
         NORMAL_TERMINATOR,
+        BOUNDARY,
+        NON_BOUNDARY
     };
 
     enum class SetType {
@@ -31,6 +33,12 @@ struct Token {
         NEG,
         RANGE,
         SET_TERMINATOR,
+        WHITESPACE,
+        NON_WHITESPACE,
+        DIGIT,
+        NON_DIGIT,
+        WORD,
+        NON_WORD,
     };
 
     NormalType normal_type;
@@ -103,6 +111,53 @@ inline std::ostream &operator<<(std::ostream &os, Token const &token) {
     case QUESTION:
         os << "token type: "
            << "QUESTION MARK";
+        break;
+    case BOUNDARY:
+        os << "token type: "
+           << "BOUNDARY";
+        break;
+    case NON_BOUNDARY:
+        os << "token type: "
+           << "NON_BOUNDARY";
+        break;
+    }
+    os << std::endl;
+    os << "set type: ";
+
+    using enum Token::SetType;
+    switch (token.set_type) {
+    case MEMBER:
+        os << "MEMBER" << std::endl;
+        break;
+    case NEG:
+        os << "NEG" << std::endl;
+        break;
+    case RANGE:
+        os << "RANGE" << std::endl;
+        break;
+    case SET_TERMINATOR:
+        os << "SET_TERMINATOR" << std::endl;
+        break;
+    case WHITESPACE:
+        os << "WHITESPACE" << std::endl;
+        break;
+    case NON_WHITESPACE:
+        os << "NON_WHITESPACE" << std::endl;
+        break;
+    case DIGIT:
+        os << "DIGIT" << std::endl;
+        break;
+    case NON_DIGIT:
+        os << "NON_DIGIT" << std::endl;
+        break;
+    case WORD:
+        os << "WORD" << std::endl;
+        break;
+    case NON_WORD:
+        os << "NON_WORD" << std::endl;
+        break;
+    default:
+        os << "what is going on " << std::endl;
         break;
     }
     return os;

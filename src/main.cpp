@@ -52,10 +52,10 @@ int main() {
     // auto table = compile(*token_stack);
     // std::cout << table << std::endl;
 
-    Matcher m{"[z-a]*", false};
+    Matcher m{"[\\W]", false};
     std::cout << "table contents:=================== " << std::endl;
     std::cout << m << std::endl;
-    auto results = m.match("a-bbbtaa");
+    auto results = m.match("\t aAbBgG 1234");
     if (results.empty()) {
         std::cout << "no matches" << std::endl;
     } else {

@@ -22,8 +22,39 @@ std::optional<TokenStack> tokenize(std::string_view regex_string) {
             if (idx >= regex_string.length()) {
                 return {};
             }
+
+            switch (regex_string[idx]) {
+            case 's':
+                token_stack.push({CHARACTER, WHITESPACE, regex_string[idx]});
+                break;
+            case 'S':
+                token_stack.push(
+                    {CHARACTER, NON_WHITESPACE, regex_string[idx]});
+                break;
+            case 'd':
+                token_stack.push({CHARACTER, DIGIT, regex_string[idx]});
+                break;
+            case 'D':
+                token_stack.push({CHARACTER, NON_DIGIT, regex_string[idx]});
+                break;
+            case 'w':
+                token_stack.push({CHARACTER, WORD, regex_string[idx]});
+                break;
+            case 'W':
+                token_stack.push({CHARACTER, NON_WORD, regex_string[idx]});
+                break;
+            case 'b':
+                token_stack.push({BOUNDARY, MEMBER, regex_string[idx]});
+                break;
+            case 'B':
+                token_stack.push({NON_BOUNDARY, MEMBER, regex_string[idx]});
+                break;
+            default:
+                token_stack.push({CHARACTER, MEMBER, regex_string[idx]});
+                break;
+            }
+
             // need to address the set types later
-            token_stack.push({CHARACTER, MEMBER, regex_string[idx]});
             continue;
         }
 
@@ -73,14 +104,36 @@ std::optional<TokenStack> tokenize(std::string_view regex_string) {
     return token_stack;
 }
 
-void validate_set(TokenStack &token_stack) {
+bool validate_set(TokenStack &token_stack) {
+    using enum Token::SetType;
     using enum Token::NormalType;
     // negation operations
-    token_stack.expect(BOL);
-    // take everything literally stop at the first RSET
-    while (!token_stack.empty() && token_stack.except(RSET)) {
-        ;
+    token_stack.expect(NEG);
+    while (!token_stack.empty() && token_stack.peek().normal_type != RSET) {
+        // rule: we always treat dash as a range operator
+        Token t = token_stack.pop();
+
+        // ranges have to be surrounded by two members
+        if (t.set_type == RANGE) {
+            return false;
+        }
+
+        if (t.set_type == WHITESPACE || t.set_type == NON_WHITESPACE ||
+            t.set_type == DIGIT || t.set_type == NON_DIGIT ||
+            t.set_type == WORD || t.set_type == NON_WORD || t.set_type == NEG) {
+            continue;
+        }
+
+        // the remaining case is that it's a member
+        assert(t.set_type == MEMBER);
+        // peek to see if it's the range op
+        if (token_stack.expect(RANGE)) {
+            if (!(token_stack.expect(MEMBER, NEG))) {
+                return false;
+            }
+        }
     }
+    return true;
 }
 
 bool validate_helper(TokenStack &token_stack) {
@@ -164,46 +217,146 @@ void compile_post_modifier(TableBuilder &table_builder,
     token_stack.expect(PLUS, STAR, QUESTION);
 }
 
+std::vector<char> create_base_set() {
+    std::vector<char> base_set;
+    for (char c = 32; c < 127; ++c) {
+        base_set.push_back(c);
+    }
+
+    base_set.push_back(9);
+    return base_set;
+};
+
+std::vector<char>
+create_from_ranges(std::vector<std::pair<char, char>> ranges) {
+    // assume the ranges are disjoint probably.
+    // on pair i guess it does lexi ordering
+    std::sort(ranges.begin(), ranges.end());
+    std::vector<char> to_ret;
+    for (auto ran : ranges) {
+        if (ran.second < ran.first) {
+            auto temp = ran.first;
+            ran.first = ran.second;
+            ran.second = temp;
+        }
+
+        for (char c = ran.first; c <= ran.second; ++c) {
+            to_ret.push_back(c);
+        }
+    }
+    return to_ret;
+};
+
+std::vector<char>
+remove_from_base_set(std::vector<std::pair<char, char>> ranges) {
+    std::sort(ranges.begin(), ranges.end(),
+              [](auto const &a, auto const &b) { return a.first < b.first; });
+    std::vector<char> to_ret;
+
+    // the special case
+    if (ranges.front().first != '\t') {
+        to_ret.push_back('\t');
+    }
+
+    char c = 32;
+    for (auto ran : ranges) {
+        std::cerr << "ran.first: " << ran.first;
+        std::cerr << "ran.second: " << ran.second << std::endl;
+        while (c < ran.first) {
+            to_ret.push_back(c);
+            ++c;
+        }
+
+        if (c >= ran.first) {
+            c = ran.second + 1;
+        }
+    }
+
+    while (c < 127) {
+        to_ret.push_back(c);
+        ++c;
+    }
+
+    return to_ret;
+};
+
+std::vector<char> compile_reserved_set(Token t) {
+    using enum Token::SetType;
+    switch (t.set_type) {
+    case WHITESPACE: {
+        return {' ', '\t'};
+        break;
+    }
+    case NON_WHITESPACE: {
+        std::cerr << "hi im being called" << std::endl;
+        return remove_from_base_set({{'\t', ' '}});
+    }
+    case DIGIT: {
+        return create_from_ranges({{'0', '9'}});
+    }
+    case NON_DIGIT: {
+        return remove_from_base_set({{'0', '9'}});
+    }
+    case WORD: {
+        return create_from_ranges(
+            {{'0', '9'}, {'_', '_'}, {'a', 'z'}, {'A', 'Z'}});
+    }
+    case NON_WORD: {
+        return remove_from_base_set(
+            {{'0', '9'}, {'A', 'Z'}, {'_', '_'}, {'a', 'z'}});
+    }
+    default:
+        return {};
+    }
+}
+
 void compile_set(TableBuilder &table_builder, TokenStack &token_stack) {
     using enum Token::SetType;
     using enum Token::NormalType;
     // negation operations
+
     bool neg_mode = token_stack.expect(NEG);
-    // take everything literally, parse ^ differently.
+
+    using enum Token::SetType;
+    using enum Token::NormalType;
+    // negation operations
+    token_stack.expect(NEG);
 
     std::vector<char> char_set;
-    for (Token t = token_stack.peek(); t.normal_type != RSET;
-         t = token_stack.peek()) {
-        // rules:
-        // a-b where a and b are member types means a range (inclusive)
-        // otherwise it's a sequence of members.
-        token_stack.pop();
-        if (token_stack.peek().set_type != RANGE) {
+    while (!token_stack.empty() && token_stack.peek().normal_type != RSET) {
+        // rule: we always treat dash as a range operator
+        Token t = token_stack.pop();
+
+        // ranges have to be surrounded by two members
+        assert(t.set_type != RANGE);
+
+        if (t.set_type == NEG) {
             char_set.push_back(t.base_character);
             continue;
         }
+        std::cerr << "hi am i here" << std::endl;
+        std::cerr << t << std::endl;
+        if (t.set_type == WHITESPACE || t.set_type == NON_WHITESPACE ||
+            t.set_type == DIGIT || t.set_type == NON_DIGIT ||
+            t.set_type == WORD || t.set_type == NON_WORD || t.set_type == NEG) {
+            std::cerr << "hi am i also here" << std::endl;
 
-        // else the next char is a range type.
-        token_stack.pop();
-        if (token_stack.peek().normal_type == RSET) {
-            // if this is the case we just push back t.base_char
-            // and a '-'
-            char_set.push_back(t.base_character);
-            char_set.push_back('-');
+            auto set = compile_reserved_set(t);
+            char_set.insert(char_set.end(), set.begin(), set.end());
             continue;
         }
 
-        // else we treat it as an inclusive range
-        char c_lrange = t.base_character;
-        char c_rrange = token_stack.peek().base_character;
-        if (c_rrange < c_lrange) {
-            std::swap(c_lrange, c_rrange);
+        if (token_stack.expect(RANGE)) {
+            Token rb = token_stack.pop();
+            // use this next char as a range
+            assert(rb.set_type == MEMBER || rb.set_type == NEG);
+            auto set =
+                create_from_ranges({{t.base_character, rb.base_character}});
+            char_set.insert(char_set.end(), set.begin(), set.end());
+            for (char c : set) {
+                char_set.push_back(c);
+            }
         }
-        for (char m = c_lrange; m <= c_rrange; ++m) {
-            char_set.push_back(m);
-        }
-        // pop the peeked character
-        token_stack.pop();
     }
 
     if (neg_mode) {
