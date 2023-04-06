@@ -10,7 +10,7 @@
 #include <vector>
 
 struct Token {
-    enum class Type {
+    enum class NormalType {
         CHARACTER,
         LPAREN,
         RPAREN,
@@ -22,17 +22,26 @@ struct Token {
         BOL,
         OR,
         STAR,
-        PATTERN_TERMINATOR,
         QUESTION,
+        NORMAL_TERMINATOR,
     };
 
-    Type type;
+    enum class SetType {
+        MEMBER,
+        NEG,
+        RANGE,
+        SET_TERMINATOR,
+    };
+
+    NormalType normal_type;
+    SetType set_type;
+
     char base_character;
 };
 
 inline std::ostream &operator<<(std::ostream &os, Token const &token) {
-    using enum Token::Type;
-    switch (token.type) {
+    using enum Token::NormalType;
+    switch (token.normal_type) {
     case CHARACTER:
         os << "token type: "
            << "CHARACTER"
@@ -79,7 +88,7 @@ inline std::ostream &operator<<(std::ostream &os, Token const &token) {
            << "STAR"
            << " " << token.base_character;
         break;
-    case PATTERN_TERMINATOR:
+    case NORMAL_TERMINATOR:
         os << "token type: "
            << "PATTERN_TERMINATOR";
         break;
@@ -117,11 +126,12 @@ class TokenStack {
 
     // if successful, consumes one more on the stack
     template <typename... A>
-    requires(std::same_as<A, Token::Type> &&...) bool expect(A... expected) {
+    requires(std::same_as<A, Token::NormalType> &&...) bool expect(
+        A... expected) {
         Token curr_token = peek();
         bool matched_something = std::invoke(
             [curr_token](A const &...expected) {
-                return ((curr_token.type == expected) || ...);
+                return ((curr_token.normal_type == expected) || ...);
             },
             std::forward<A>(expected)...);
 
@@ -132,11 +142,27 @@ class TokenStack {
     }
 
     template <typename... A>
-    requires(std::same_as<A, Token::Type> &&...) bool except(A... expected) {
+    requires(std::same_as<A, Token::SetType> &&...) bool expect(A... expected) {
         Token curr_token = peek();
         bool matched_something = std::invoke(
             [curr_token](A const &...expected) {
-                return ((curr_token.type == expected) || ...);
+                return ((curr_token.set_type == expected) || ...);
+            },
+            std::forward<A>(expected)...);
+
+        if (matched_something) {
+            pop();
+        }
+        return matched_something;
+    }
+
+    template <typename... A>
+    requires(std::same_as<A, Token::NormalType> &&...) bool except(
+        A... expected) {
+        Token curr_token = peek();
+        bool matched_something = std::invoke(
+            [curr_token](A const &...expected) {
+                return ((curr_token.normal_type == expected) || ...);
             },
             std::forward<A>(expected)...);
 
@@ -167,7 +193,8 @@ class TokenStack {
 
     bool empty() const {
         // maybe we should make it so that our constructor always pushes this
-        return token_list[curr_idx].type == Token::Type::PATTERN_TERMINATOR;
+        return token_list[curr_idx].normal_type ==
+               Token::NormalType::NORMAL_TERMINATOR;
     }
 
     size_t size() const {

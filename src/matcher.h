@@ -58,7 +58,7 @@ class Matcher {
         if (!token_stack) {
             throw std::runtime_error("invalid tokenization");
         }
-
+        (*token_stack).reset_state();
         if (!validate(*token_stack)) {
             throw std::runtime_error("invalid regex pattern");
         }
@@ -70,10 +70,8 @@ class Matcher {
         std::vector<std::string_view> line_list = break_into_lines(str);
         std::vector<Result> total_results;
         size_t running_base_offset = 0;
-        std::cerr << "num lines " << line_list.size() << std::endl;
 
         for (auto const &line : line_list) {
-            std::cerr << "matching against line " << line << std::endl;
             auto line_res = match_line(line);
 
             // append the results
@@ -108,15 +106,14 @@ class Matcher {
         // useful lambdas
         auto add_new_active_matches = [&](size_t idx) {
             // add a new active_match here
-            std::cerr << "pushing back new starting states";
-            std::cerr << "size: " << table.starting_states.size() << std::endl;
             active_matches.push_back(
                 {{table.starting_states.begin(), table.starting_states.end()},
                  idx,
                  idx});
         };
 
-        auto progress_states = [&](char char_to_match, size_t curr_idx) {
+        auto progress_states = [&](char char_to_match, size_t curr_idx,
+                                   bool update_accepting = true) {
             for (auto &ac_st : active_matches) {
                 // clear out the scratch space
                 temp_union.clear();
@@ -142,8 +139,9 @@ class Matcher {
 
                     // the latter condition avoids empty string matches
                     if (table.is_accepting(ac_st.fa_states) &&
-                        curr_idx > ac_st.starting_offset) {
-                        to_return.push_back({ac_st.starting_offset, curr_idx});
+                        curr_idx >= ac_st.starting_offset && update_accepting) {
+                        to_return.push_back(
+                            {ac_st.starting_offset, curr_idx + 1});
                     }
                     // move this into next_active_state;
                     next_active_states.push_back(std::move(ac_st));
@@ -155,36 +153,35 @@ class Matcher {
 
         // feed in bol
         add_new_active_matches(0);
-        progress_states(2, 0);
+        progress_states(2, 0, false);
 
         // main iteration
         for (size_t str_idx = 0; str_idx < str.length(); ++str_idx) {
-            std::cerr << "iter" << std::endl;
             add_new_active_matches(str_idx);
             print_active_states();
             progress_states(str[str_idx], str_idx);
         }
         print_active_states();
         // feed in eol
-        progress_states(10, str.length());
+        progress_states(10, str.length() - 1);
 
         return to_return;
     }
 
   private:
     void print_active_states() const {
-        std::cerr << "active matches: =============" << std::endl;
+        std::cout << "active matches: =============" << std::endl;
         for (auto const &ac_st : active_matches) {
-            std::cerr << "===============================" << std::endl;
-            std::cerr << "starting_offset: " << ac_st.starting_offset << ";";
-            std::cerr << "ending_offset: " << ac_st.ending_offset << ";";
-            std::cerr << "ac states: " << std::endl;
+            std::cout << "===============================" << std::endl;
+            std::cout << "starting_offset: " << ac_st.starting_offset << ";";
+            std::cout << "ending_offset: " << ac_st.ending_offset << ";";
+            std::cout << "ac states: " << std::endl;
             for (auto const &fa_state : ac_st.fa_states) {
-                std::cerr << fa_state << std::endl;
+                std::cout << fa_state << std::endl;
             }
-            std::cerr << "===============================" << std::endl;
+            std::cout << "===============================" << std::endl;
         }
-        std::cerr << "===============================" << std::endl;
+        std::cout << "===============================" << std::endl;
     }
 };
 
