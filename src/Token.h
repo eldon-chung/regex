@@ -11,34 +11,28 @@
 
 struct Token {
     enum class NormalType {
-        CHARACTER,
-        LPAREN,
-        RPAREN,
-        LSET,
-        RSET,
-        PLUS,
-        DOT,
-        EOL,
-        BOL,
-        OR,
-        STAR,
-        QUESTION,
-        NORMAL_TERMINATOR,
-        BOUNDARY,
-        NON_BOUNDARY
+        N_CHARACTER,
+        N_LPAREN,
+        N_RPAREN,
+        N_LSET,
+        N_RSET,
+        N_EOL,
+        N_BOL,
+        N_OR,
+        N_POST_MODIFIER,
+        N_BOUNDARY,
+        N_RESERV_SET,
+        N_TERMINATOR,
     };
 
     enum class SetType {
-        MEMBER,
-        NEG,
-        RANGE,
-        SET_TERMINATOR,
-        WHITESPACE,
-        NON_WHITESPACE,
-        DIGIT,
-        NON_DIGIT,
-        WORD,
-        NON_WORD,
+        S_CHARACTER,
+        S_NEG,
+        S_RANGE,
+        S_LSET,
+        S_RSET,
+        S_TERMINATOR,
+        S_RESERV_SET,
     };
 
     NormalType normal_type;
@@ -49,117 +43,66 @@ struct Token {
 
 inline std::ostream &operator<<(std::ostream &os, Token const &token) {
     using enum Token::NormalType;
+    os << "base char: " << token.base_character << ";";
+    os << "normal_type: ";
     switch (token.normal_type) {
-    case CHARACTER:
-        os << "token type: "
-           << "CHARACTER"
-           << " " << token.base_character;
+    case N_CHARACTER:
+        os << "CHARACTER; ";
         break;
-
-    case LPAREN:
-        os << "token type: "
-           << "LPAREN"
-           << " " << token.base_character;
+    case N_LPAREN:
+        os << "LPAREN; ";
         break;
-    case RPAREN:
-        os << "token type: "
-           << "RPAREN"
-           << " " << token.base_character;
+    case N_RPAREN:
+        os << "RPAREN; ";
         break;
-    case PLUS:
-        os << "token type: "
-           << "PLUS"
-           << " " << token.base_character;
+    case N_LSET:
+        os << "LSET; ";
         break;
-    case DOT:
-        os << "token type: "
-           << "DOT"
-           << " " << token.base_character;
+    case N_RSET:
+        os << "RSET; ";
         break;
-    case EOL:
-        os << "token type: "
-           << "EOL"
-           << " " << token.base_character;
+    case N_EOL:
+        os << "EOL; ";
         break;
-    case BOL:
-        os << "token type: "
-           << "BOL"
-           << " " << token.base_character;
+    case N_BOL:
+        os << "BOL; ";
         break;
-    case OR:
-        os << "token type: "
-           << "OR"
-           << " " << token.base_character;
+    case N_OR:
+        os << "OR; ";
         break;
-    case STAR:
-        os << "token type: "
-           << "STAR"
-           << " " << token.base_character;
+    case N_POST_MODIFIER:
+        os << "POST_MODIFIER; ";
         break;
-    case NORMAL_TERMINATOR:
-        os << "token type: "
-           << "PATTERN_TERMINATOR";
+    case N_BOUNDARY:
+        os << "BOUNDARY; ";
         break;
-    case LSET:
-        os << "token type: "
-           << "LSET";
+    case N_RESERV_SET:
+        os << "SET; ";
         break;
-    case RSET:
-        os << "token type: "
-           << "RSET";
+    case N_TERMINATOR:
+        os << "NORMAL_TERMINATOR; ";
         break;
-    case QUESTION:
-        os << "token type: "
-           << "QUESTION MARK";
+    }
+    using enum Token::SetType;
+    os << "set_type: ";
+    switch (token.set_type) {
+    case S_CHARACTER:
+        os << "S_CHARACTER";
         break;
-    case BOUNDARY:
-        os << "token type: "
-           << "BOUNDARY";
+    case S_NEG:
+        os << "S_NEG";
         break;
-    case NON_BOUNDARY:
-        os << "token type: "
-           << "NON_BOUNDARY";
+    case S_RANGE:
+        os << "S_RANGE";
+        break;
+    case S_TERMINATOR:
+        os << "S_TERMINATOR";
+        break;
+    case S_RESERV_SET:
+        os << "S_SET";
         break;
     }
     os << std::endl;
-    os << "set type: ";
-
-    using enum Token::SetType;
-    switch (token.set_type) {
-    case MEMBER:
-        os << "MEMBER" << std::endl;
-        break;
-    case NEG:
-        os << "NEG" << std::endl;
-        break;
-    case RANGE:
-        os << "RANGE" << std::endl;
-        break;
-    case SET_TERMINATOR:
-        os << "SET_TERMINATOR" << std::endl;
-        break;
-    case WHITESPACE:
-        os << "WHITESPACE" << std::endl;
-        break;
-    case NON_WHITESPACE:
-        os << "NON_WHITESPACE" << std::endl;
-        break;
-    case DIGIT:
-        os << "DIGIT" << std::endl;
-        break;
-    case NON_DIGIT:
-        os << "NON_DIGIT" << std::endl;
-        break;
-    case WORD:
-        os << "WORD" << std::endl;
-        break;
-    case NON_WORD:
-        os << "NON_WORD" << std::endl;
-        break;
-    default:
-        os << "what is going on " << std::endl;
-        break;
-    }
     return os;
 }
 
@@ -249,7 +192,7 @@ class TokenStack {
     bool empty() const {
         // maybe we should make it so that our constructor always pushes this
         return token_list[curr_idx].normal_type ==
-               Token::NormalType::NORMAL_TERMINATOR;
+               Token::NormalType::N_TERMINATOR;
     }
 
     size_t size() const {
